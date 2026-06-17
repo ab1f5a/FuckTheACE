@@ -1,0 +1,8 @@
+# Build artifacts
+*.exe
+*.o
+*.obj
+*.res
+
+# Runtime
+*.log
