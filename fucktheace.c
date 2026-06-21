@@ -85,28 +85,17 @@ static int get_cpu_count(void)
     return (int)si.dwNumberOfProcessors;
 }
 
-// ─── 日志 & 配置路径 ──────────────────────────────────────
+// ─── 路径 ──────────────────────────────────────────────────
 static void log_init(void)
 {
-    WCHAR buf[MAX_PATH];
-
-    // exe 所在目录（图标回退用）
     GetModuleFileNameW(NULL, g_exe_dir, MAX_PATH);
     WCHAR *last = wcsrchr(g_exe_dir, L'\\');
     if (last) *last = L'\0';
 
-    // %APPDATA%\fucktheace\
-    ExpandEnvironmentStringsW(L"%APPDATA%", buf, MAX_PATH);
-    wsprintfW(g_log_path, L"%s\\fucktheace", buf);
+    lstrcpyW(g_log_path, L"C:\\fucktheace");
     CreateDirectoryW(g_log_path, NULL);
-
-    // config.ini
-    lstrcpyW(g_config_path, g_log_path);
-    lstrcatW(g_config_path, L"\\config.ini");
-
-    // fucktheace.log
+    lstrcpyW(g_config_path, L"C:\\fucktheace\\config.ini");
     lstrcatW(g_log_path, L"\\fucktheace.log");
-
     InitializeCriticalSection(&g_log_cs);
 }
 
@@ -180,6 +169,22 @@ static void elevate(void)
     ExitProcess(0);
 }
 
+static void enable_debug_priv(void)
+{
+    HANDLE tok;
+    if (OpenProcessToken(GetCurrentProcess(),
+                         TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &tok)) {
+        TOKEN_PRIVILEGES tp = {0};
+        if (LookupPrivilegeValueW(NULL, L"SeDebugPrivilege",
+                                  &tp.Privileges[0].Luid)) {
+            tp.PrivilegeCount = 1;
+            tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+            AdjustTokenPrivileges(tok, FALSE, &tp, 0, NULL, NULL);
+        }
+        CloseHandle(tok);
+    }
+}
+
 // ─── 单例 ──────────────────────────────────────────────────
 static BOOL check_singleton(void)
 {
@@ -241,7 +246,7 @@ static void nerf_process(DWORD pid, WCHAR *out, int out_len)
     HANDLE h = OpenProcess(PROCESS_SET_INFORMATION | PROCESS_QUERY_INFORMATION,
                            FALSE, pid);
     if (!h) {
-        lstrcpynW(out, L"OpenProcess失败", out_len);
+        wsprintfW(out, L"OpenProcess失败(%lu)", GetLastError());
         return;
     }
 
@@ -271,9 +276,8 @@ static BOOL check_process_health(DWORD pid, WCHAR *out, int out_len)
 {
     HANDLE h = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, pid);
     if (!h) {
-        // 无法打开进程（权限不足或已退出），不触发重新压制避免日志刷屏
-        wsprintfW(out, L"无法打开(%lu)", GetLastError());
-        return TRUE;
+        wsprintfW(out, L"已退出(%lu)", GetLastError());
+        return FALSE;
     }
 
     BOOL ok = TRUE;
@@ -344,7 +348,6 @@ static void scan_and_nerf(void)
     ProcList procs = enum_processes();
     if (!procs.entries) return;
 
-    // 一次遍历：收集目标 PID + 处理
     DWORD *target_pids = NULL;
     size_t target_count = 0;
 
@@ -352,14 +355,11 @@ static void scan_and_nerf(void)
         if (!is_target_process(procs.entries[i].name)) continue;
 
         DWORD pid = procs.entries[i].pid;
-
-        // 记录存活 PID
         DWORD *tmp = realloc(target_pids, (target_count + 1) * sizeof(DWORD));
         if (!tmp) { free(target_pids); proc_list_free(&procs); return; }
         target_pids = tmp;
         target_pids[target_count++] = pid;
 
-        // 处理
         WCHAR logmsg[512];
         EnterCriticalSection(&g_handled_cs);
 
@@ -394,7 +394,6 @@ static void scan_and_nerf(void)
         }
     }
 
-    // 清理已退出的 PID
     EnterCriticalSection(&g_handled_cs);
     pid_purge_dead(target_pids, target_count);
     LeaveCriticalSection(&g_handled_cs);
@@ -481,9 +480,6 @@ static void set_poll_interval(HWND hwnd, int ms)
 // ─── 日志查看 ──────────────────────────────────────────────
 static void show_log(void)
 {
-    HANDLE h = CreateFileW(g_log_path, 0, FILE_SHARE_READ,
-                           NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-    if (h != INVALID_HANDLE_VALUE) CloseHandle(h);
     ShellExecuteW(NULL, L"open", g_log_path, NULL, NULL, SW_SHOWNORMAL);
 }
 
@@ -570,7 +566,6 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         g_nid.hIcon  = hIcon;
         lstrcpynW(g_nid.szTip, L"Fuck The Ace (运行中)", 128);
 
-        // 任务计划程序启动时 explorer 可能还没就绪，注册失败则定时重试
         if (!Shell_NotifyIconW(NIM_ADD, &g_nid))
             SetTimer(hwnd, TRAY_RETRY_ID, 2000, NULL);
 
@@ -629,7 +624,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
         return 0;
     }
 
-    // 同步计划任务：配置已开 → 确保任务存在；配置已关 → 删除
+    enable_debug_priv();
+
     if (g_autostart) {
         DWORD exit = schtasks_run(L"/query /tn \"FuckTheAce\" /fo csv /nh", 3000);
         if (exit != 0) {
