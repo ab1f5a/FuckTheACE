@@ -25,7 +25,7 @@ winget install BrechtSanders.WinLibs.POSIX.UCRT
 右键以管理员身份运行 `fucktheace.exe`，程序驻留系统托盘。
 
 托盘右键菜单：
-- **查看日志** — 打开 `%APPDATA%\fucktheace\fucktheace.log`
+- **查看日志** — 打开 `C:\fucktheace\fucktheace.log`
 - **开机时启动** — 通过任务计划程序实现，不弹 UAC
 - **监控间隔** — 实时 / 10s / 30s / 60s / 120s / 300s
 - **退出程序**

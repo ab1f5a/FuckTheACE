@@ -24,11 +24,11 @@ echo [1/2] Compiling resources...
 if errorlevel 1 exit /b 1
 
 echo [2/2] Compiling executable...
-"%GCC_BIN%\gcc.exe" -Os -s -mwindows -municode -static -ffunction-sections -fdata-sections -Wl,--gc-sections -Wl,--stack,65536 fucktheace.c resource.o -o fucktheace.exe
+"%GCC_BIN%\gcc.exe" -Os -s -mwindows -municode -static -ffunction-sections -fdata-sections -Wl,--gc-sections -Wl,--stack,65536 fucktheace.c resource.o -o FuckTheACE.exe
 if errorlevel 1 exit /b 1
 
 echo.
 echo === BUILD SUCCESS ===
-for %%f in (fucktheace.exe) do echo   Size: %%~zf bytes
+for %%f in (FuckTheACE.exe) do echo   Size: %%~zf bytes
 echo.
-echo Run as Administrator: right-click fucktheace.exe -^> Run as administrator
+echo Run as Administrator: right-click FuckTheACE.exe -^> Run as administrator
