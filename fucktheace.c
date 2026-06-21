@@ -58,7 +58,6 @@ static NOTIFYICONDATAW g_nid         = {0};
 static int             g_last_cpu    = 0;
 static int             g_poll_ms     = POLL_INTERVAL_MS;
 static BOOL            g_autostart   = FALSE;
-static int             g_tray_retries = 0;
 static WCHAR           g_log_path[MAX_PATH];
 static WCHAR           g_config_path[MAX_PATH];
 static WCHAR           g_exe_dir[MAX_PATH];
@@ -566,8 +565,9 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         g_nid.hIcon  = hIcon;
         lstrcpynW(g_nid.szTip, L"Fuck The Ace (运行中)", 128);
 
-        if (!Shell_NotifyIconW(NIM_ADD, &g_nid))
-            SetTimer(hwnd, TRAY_RETRY_ID, 2000, NULL);
+        // 首次注册，explorer 可能尚未就绪，延迟重试保底
+        Shell_NotifyIconW(NIM_ADD, &g_nid);
+        SetTimer(hwnd, TRAY_RETRY_ID, 2000, NULL);
 
         SetTimer(hwnd, TIMER_ID, g_poll_ms, NULL);
         scan_and_nerf();
@@ -588,12 +588,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         if (wp == TIMER_ID) {
             scan_and_nerf();
         } else if (wp == TRAY_RETRY_ID) {
-            if (Shell_NotifyIconW(NIM_ADD, &g_nid)) {
-                KillTimer(hwnd, TRAY_RETRY_ID);
-            } else if (++g_tray_retries >= 15) {
-                KillTimer(hwnd, TRAY_RETRY_ID);
-                log_write(L"托盘图标注册失败（已重试15次）");
-            }
+            Shell_NotifyIconW(NIM_ADD, &g_nid);
+            KillTimer(hwnd, TRAY_RETRY_ID);
         }
         return 0;
 
