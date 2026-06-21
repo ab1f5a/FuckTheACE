@@ -271,8 +271,9 @@ static BOOL check_process_health(DWORD pid, WCHAR *out, int out_len)
 {
     HANDLE h = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, pid);
     if (!h) {
-        lstrcpynW(out, L"进程已退出", out_len);
-        return FALSE;
+        // 无法打开进程（权限不足或已退出），不触发重新压制避免日志刷屏
+        wsprintfW(out, L"无法打开(%lu)", GetLastError());
+        return TRUE;
     }
 
     BOOL ok = TRUE;
