@@ -30,7 +30,7 @@ winget install BrechtSanders.WinLibs.POSIX.UCRT
 - **监控间隔** — 实时 / 10s / 30s / 60s / 120s / 300s
 - **退出程序**
 
-配置保存在 `%APPDATA%\fucktheace\config.ini`，重启后恢复上次设置。
+配置保存在 `C:\fucktheace\config.ini`，重启后恢复上次设置。
 
 ## 系统要求
 
